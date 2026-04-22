@@ -1,0 +1,44 @@
+# Compiled binaries
+order-service
+payment-service
+inventory-service
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary
+*.test
+
+# Go coverage
+*.out
+coverage.html
+
+# Go workspace
+go.work
+go.work.sum
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment variables
+.env
+.env.*
+
+# Vendor (uncomment if you commit vendor/)
+# vendor/
+
+# Debug
+__debug_bin*
+
+# Tmp
+tmp/

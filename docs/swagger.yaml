@@ -1,0 +1,138 @@
+basePath: /
+definitions:
+  domain.OrderStatus:
+    enum:
+    - PENDING
+    - PAID
+    - COMPLETED
+    - CANCELLED
+    - FAILED
+    type: string
+    x-enum-varnames:
+    - OrderStatusPending
+    - OrderStatusPaid
+    - OrderStatusCompleted
+    - OrderStatusCancelled
+    - OrderStatusFailed
+  dto.CreateOrderRequest:
+    properties:
+      customer_id:
+        example: cust-001
+        type: string
+      product_id:
+        example: prod-001
+        type: string
+      quantity:
+        example: 2
+        type: integer
+      total_price:
+        example: 99.9
+        type: number
+    type: object
+  dto.OrderResponse:
+    properties:
+      created_at:
+        example: "2024-01-01T00:00:00Z"
+        type: string
+      customer_id:
+        example: cust-001
+        type: string
+      id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      product_id:
+        example: prod-001
+        type: string
+      quantity:
+        example: 2
+        type: integer
+      status:
+        allOf:
+        - $ref: '#/definitions/domain.OrderStatus'
+        example: PENDING
+      total_price:
+        example: 99.9
+        type: number
+      updated_at:
+        example: "2024-01-01T00:00:00Z"
+        type: string
+    type: object
+host: localhost:8081
+info:
+  contact: {}
+  description: Siparis yonetimi icin REST API - Kafka event-driven microservice mimarisi
+  title: E-Commerce Order Service API
+  version: "1.0"
+paths:
+  /orders:
+    post:
+      consumes:
+      - application/json
+      description: Yeni bir siparis olusturur ve Kafka'ya OrderCreated eventi yayinlar
+      parameters:
+      - description: Siparis bilgileri
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateOrderRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.OrderResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Yeni siparis olustur
+      tags:
+      - orders
+  /orders/{id}:
+    get:
+      description: ID ile siparis bilgilerini getirir
+      parameters:
+      - description: Siparis ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.OrderResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Siparis sorgula
+      tags:
+      - orders
+swagger: "2.0"
