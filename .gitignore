@@ -1,7 +1,7 @@
 # Compiled binaries
-order-service
-payment-service
-inventory-service
+/order-service
+/payment-service
+/inventory-service
 *.exe
 *.exe~
 *.dll
