@@ -16,8 +16,11 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	_ "github.com/suleymankursatdemir/ecommerce-platform/docs"
+	"github.com/suleymankursatdemir/ecommerce-platform/internal/auth/handler"
+	authrepo "github.com/suleymankursatdemir/ecommerce-platform/internal/auth/repository"
+	authuc "github.com/suleymankursatdemir/ecommerce-platform/internal/auth/usecase"
 	pb "github.com/suleymankursatdemir/ecommerce-platform/pkg/grpc/inventorypb"
-	"github.com/suleymankursatdemir/ecommerce-platform/internal/order/handler"
+	orderhandler "github.com/suleymankursatdemir/ecommerce-platform/internal/order/handler"
 	"github.com/suleymankursatdemir/ecommerce-platform/internal/order/repository"
 	"github.com/suleymankursatdemir/ecommerce-platform/internal/order/usecase"
 	"github.com/suleymankursatdemir/ecommerce-platform/pkg/config"
@@ -52,6 +55,14 @@ func main() {
 	orderRepo := repository.NewPostgresOrderRepository(db)
 	orderUC := usecase.NewOrderUseCase(orderRepo)
 
+	userRepo := authrepo.NewPostgresUserRepository(db)
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		jwtSecret = "my-super-secret-key-change-in-production"
+	}
+	authUC := authuc.NewAuthUseCase(userRepo, jwtSecret)
+	authHandler := handler.NewAuthHandler(authUC)
+
 	orderCreatedProducer := pkgkafka.NewProducer(cfg.Kafka.Brokers, "OrderCreated")
 	defer orderCreatedProducer.Close()
 
@@ -68,8 +79,8 @@ func main() {
 	inventoryClient := pb.NewInventoryServiceClient(grpcConn)
 	logger.Info("connected to inventory gRPC", "addr", inventoryAddr)
 
-	orderHandler := handler.NewOrderHandler(orderUC, orderCreatedProducer, inventoryClient)
-	orderKafkaHandler := handler.NewOrderKafkaHandler(orderUC, logger)
+	orderHandler := orderhandler.NewOrderHandler(orderUC, orderCreatedProducer, inventoryClient)
+	orderKafkaHandler := orderhandler.NewOrderKafkaHandler(orderUC, logger)
 
 	paymentSuccessConsumer := pkgkafka.NewConsumer(cfg.Kafka.Brokers, "PaymentSuccess", "order-service-payment-success", logger)
 	paymentSuccessConsumer.SetHandler(orderKafkaHandler.HandlePaymentSuccess)
@@ -85,7 +96,12 @@ func main() {
 	r.Use(appmiddleware.CORS)
 	r.Use(chimw.RealIP)
 
-	orderHandler.RegisterRoutes(r)
+	authHandler.RegisterRoutes(r)
+
+	r.Route("/", func(r chi.Router) {
+		r.Use(appmiddleware.JWTAuth(jwtSecret))
+		orderHandler.RegisterRoutes(r)
+	})
 
 	healthChecker := health.NewHealthChecker(db, cfg.Kafka.Brokers[0])
 	health.RegisterRoutes(r, healthChecker)
