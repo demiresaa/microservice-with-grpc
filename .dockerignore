@@ -1,0 +1,54 @@
+# ============================================================================
+# .DOCKERIGNORE
+# ============================================================================
+#
+# Bu dosya, Docker build sırasında IGNORE EDİLECEK dosyaları belirtir.
+# Ne kadar az dosya kopyalanırsa:
+#   1. Build context o kadar küçük olur → build hızlanır
+#   2. Cache invalidation azalır → layer'lar tekrar kullanılır
+#   3. Hassas dosyalar (secrets) yanlışlıkla image'a giremez
+#
+# ÖNEMLİ: .git klasörünü ignore ETMEMELİYİZ!
+#   go mod download ve go build sırasında git metadata'sı gerekebilir.
+#   Ama genelde go.mod/go.sum yeterlidir → projemizde git gerekmez.
+# ============================================================================
+
+# Derlenmiş binary'ler (builder stage'de yeniden derlenir)
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Test coverage
+coverage.html
+
+# IDE dosyaları
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS dosyaları
+.DS_Store
+Thumbs.db
+
+# Environment dosyaları (secrets!)
+.env
+.env.*
+
+# Debug dosyaları
+__debug_bin*
+
+# Geçici dosyalar
+tmp/
+
+# Dokümantasyon - docs/ KALMALI çünkü order-service swagger için import ediyor
+*.md
+!README.md
+
+# Claude AI config
+.claude/

@@ -1,6 +1,38 @@
+# ============================================================================
+# DOCKER COMPOSE - E-COMMERCE MICROSERVICES PLATFORM
+# ============================================================================
+#
+# Bu compose dosyası tüm servisleri + altyapıyı (DB, Kafka) ayağa kaldırır.
+#
+# İKİ KULLANIM ŞEKLİ:
+#   1. Tam stack:     docker-compose up -d
+#   2. Sadece altyapı: docker-compose up -d zookeeper kafka kafka-ui order-db payment-db inventory-db
+#
+# SERVİS BAĞIMLILIK SIRASI:
+#   zookeeper → kafka → [servisler]
+#   order-db / payment-db / inventory-db → [ilgili servisler]
+#
+# HER SERVİS İÇİN:
+#   build:     Dockerfile'ın yeri (multi-stage build kullanır)
+#   depends_on: Önce bu container'lar ayakta olmalı
+#   environment: Config için environment variable'lar
+#   networks:  Aynı network'teki container'lar birbirine erişebilir
+#
+# DOCKER COMPOSE + MULTI-STAGE BUILD:
+#   build.context:  Dockerfile'ın bulunduğu dizin (proje root'u)
+#   build.dockerfile: Dockerfile'ın yolu (cmd/xxx-service/Dockerfile)
+#   → docker-compose build komutu otomatik multi-stage build yapar
+#   → builder stage atılır, sadece runtime image kullanılır
+#
+# ============================================================================
+
 version: "3.9"
 
 services:
+  # ========================================================================
+  # ALTYAPI SERVİSLERİ (Infrastructure)
+  # ========================================================================
+
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
     container_name: ecommerce-zookeeper
@@ -45,6 +77,12 @@ services:
     networks:
       - ecommerce-network
 
+  # ========================================================================
+  # VERİTABANLARI
+  # ========================================================================
+  # Her servis için ayrı PostgreSQL instance (database-per-service pattern)
+  # healthcheck → servisler DB hazır olmadan başlamaz
+
   order-db:
     image: postgres:16-alpine
     container_name: ecommerce-order-db
@@ -56,6 +94,11 @@ services:
       - "5432:5432"
     volumes:
       - order-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U order_user -d order_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     networks:
       - ecommerce-network
 
@@ -70,6 +113,11 @@ services:
       - "5433:5432"
     volumes:
       - payment-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U payment_user -d payment_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     networks:
       - ecommerce-network
 
@@ -84,6 +132,106 @@ services:
       - "5434:5432"
     volumes:
       - inventory-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U inventory_user -d inventory_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ecommerce-network
+
+  # ========================================================================
+  # UYGULAMA SERVİSLERİ (Multi-stage build ile oluşturulan container'lar)
+  # ========================================================================
+  #
+  # depends_on + condition: service_healthy
+  #   → DB ve Kafka ayakta + healthcheck geçmeden servis başlamaz
+  #
+  # environment:
+  #   → Container içindeki network: localhost DEĞİL, container adı kullanılır
+  #   → DB_HOST=order-db (container adı = DNS name)
+  #   → KAFKA_BROKER=kafka:29092 (kafka container'ının internal portu)
+  #
+  # restart: unless-stopped
+  #   → Crash olursa otomatik yeniden başlat
+  #
+  # profiles: ["services"]
+  #   → docker-compose up -d → sadece altyapı
+  #   → docker-compose --profile services up -d → altyapı + servisler
+  #   BU ÖZELLİĞİ KULLANMADIK, dilersen ekleyebilirsin.
+
+  order-service:
+    build:
+      context: .
+      dockerfile: cmd/order-service/Dockerfile
+    container_name: ecommerce-order-service
+    depends_on:
+      order-db:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+      inventory-service:
+        condition: service_started
+    environment:
+      SERVICE_PORT: "8081"
+      DB_HOST: order-db
+      DB_PORT: "5432"
+      DB_USER: order_user
+      DB_PASSWORD: order_pass
+      DB_NAME: order_db
+      DB_SSLMODE: disable
+      KAFKA_BROKER: kafka:29092
+      INVENTORY_GRPC_ADDR: inventory-service:50051
+    ports:
+      - "8081:8081"
+    restart: unless-stopped
+    networks:
+      - ecommerce-network
+
+  payment-service:
+    build:
+      context: .
+      dockerfile: cmd/payment-service/Dockerfile
+    container_name: ecommerce-payment-service
+    depends_on:
+      payment-db:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+    environment:
+      DB_HOST: payment-db
+      DB_PORT: "5432"
+      DB_USER: payment_user
+      DB_PASSWORD: payment_pass
+      DB_NAME: payment_db
+      DB_SSLMODE: disable
+      KAFKA_BROKER: kafka:29092
+    restart: unless-stopped
+    networks:
+      - ecommerce-network
+
+  inventory-service:
+    build:
+      context: .
+      dockerfile: cmd/inventory-service/Dockerfile
+    container_name: ecommerce-inventory-service
+    depends_on:
+      inventory-db:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+    environment:
+      DB_HOST: inventory-db
+      DB_PORT: "5432"
+      DB_USER: inventory_user
+      DB_PASSWORD: inventory_pass
+      DB_NAME: inventory_db
+      DB_SSLMODE: disable
+      KAFKA_BROKER: kafka:29092
+      GRPC_PORT: "50051"
+    ports:
+      - "50051:50051"
+    restart: unless-stopped
     networks:
       - ecommerce-network
 
