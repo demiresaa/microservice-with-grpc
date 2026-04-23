@@ -20,6 +20,7 @@ import (
 	"github.com/suleymankursatdemir/ecommerce-platform/internal/order/usecase"
 	"github.com/suleymankursatdemir/ecommerce-platform/pkg/config"
 	"github.com/suleymankursatdemir/ecommerce-platform/pkg/database"
+	"github.com/suleymankursatdemir/ecommerce-platform/pkg/health"
 	pkgkafka "github.com/suleymankursatdemir/ecommerce-platform/pkg/kafka"
 	"github.com/suleymankursatdemir/ecommerce-platform/pkg/logger"
 )
@@ -75,6 +76,10 @@ func main() {
 
 	mux := http.NewServeMux()
 	orderHandler.RegisterRoutes(mux)
+
+	healthChecker := health.NewHealthChecker(db, cfg.Kafka.Brokers[0])
+	health.RegisterRoutes(mux, healthChecker)
+
 	mux.Handle("GET /swagger/", httpSwagger.WrapHandler)
 
 	srv := &http.Server{

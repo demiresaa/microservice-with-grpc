@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -16,6 +17,7 @@ import (
 	"github.com/suleymankursatdemir/ecommerce-platform/internal/inventory/usecase"
 	"github.com/suleymankursatdemir/ecommerce-platform/pkg/config"
 	"github.com/suleymankursatdemir/ecommerce-platform/pkg/database"
+	"github.com/suleymankursatdemir/ecommerce-platform/pkg/health"
 	pkgkafka "github.com/suleymankursatdemir/ecommerce-platform/pkg/kafka"
 	pb "github.com/suleymankursatdemir/ecommerce-platform/pkg/grpc/inventorypb"
 	"github.com/suleymankursatdemir/ecommerce-platform/pkg/logger"
@@ -70,6 +72,28 @@ func main() {
 	consumer := pkgkafka.NewConsumer(cfg.Kafka.Brokers, "PaymentSuccess", "inventory-service-group", logger)
 	consumer.SetHandler(inventoryHandler.HandlePaymentSuccess)
 
+	mux := http.NewServeMux()
+	healthChecker := health.NewHealthChecker(db, cfg.Kafka.Brokers[0])
+	health.RegisterRoutes(mux, healthChecker)
+
+	httpPort := os.Getenv("HEALTH_PORT")
+	if httpPort == "" {
+		httpPort = "8083"
+	}
+	httpSrv := &http.Server{
+		Addr:         ":" + httpPort,
+		Handler:      mux,
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 5 * time.Second,
+	}
+
+	go func() {
+		logger.Info("health check server starting", "port", httpPort)
+		if err := httpSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			logger.Error("health server error", "error", err)
+		}
+	}()
+
 	srvCtx, srvCancel := context.WithCancel(context.Background())
 	defer srvCancel()
 
@@ -90,6 +114,10 @@ func main() {
 
 	srvCancel()
 	grpcServer.GracefulStop()
+
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer shutdownCancel()
+	httpSrv.Shutdown(shutdownCtx)
 
 	time.Sleep(2 * time.Second)
 
