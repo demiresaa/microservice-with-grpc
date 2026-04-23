@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/go-chi/chi/v5"
+
 	"github.com/suleymankursatdemir/ecommerce-platform/internal/order/dto"
 	"github.com/suleymankursatdemir/ecommerce-platform/internal/order/usecase"
 	apperrors "github.com/suleymankursatdemir/ecommerce-platform/pkg/errors"
@@ -26,9 +28,9 @@ func NewOrderHandler(uc usecase.OrderUseCase, producer *pkgkafka.Producer, inven
 	}
 }
 
-func (h *OrderHandler) RegisterRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("POST /orders", h.CreateOrder)
-	mux.HandleFunc("GET /orders/{id}", h.GetOrder)
+func (h *OrderHandler) RegisterRoutes(r chi.Router) {
+	r.Post("/orders", h.CreateOrder)
+	r.Get("/orders/{id}", h.GetOrder)
 }
 
 // CreateOrder godoc
@@ -105,7 +107,7 @@ func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 // @Failure      500 {object} map[string]string
 // @Router       /orders/{id} [get]
 func (h *OrderHandler) GetOrder(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
+	id := chi.URLParam(r, "id")
 	if id == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{
 			"error": "order id is required",

@@ -9,6 +9,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+	chimw "github.com/go-chi/chi/v5/middleware"
 	httpSwagger "github.com/swaggo/http-swagger/v2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -23,6 +25,7 @@ import (
 	"github.com/suleymankursatdemir/ecommerce-platform/pkg/health"
 	pkgkafka "github.com/suleymankursatdemir/ecommerce-platform/pkg/kafka"
 	"github.com/suleymankursatdemir/ecommerce-platform/pkg/logger"
+	appmiddleware "github.com/suleymankursatdemir/ecommerce-platform/pkg/middleware"
 )
 
 // @title           E-Commerce Order Service API
@@ -74,17 +77,24 @@ func main() {
 	paymentFailedConsumer := pkgkafka.NewConsumer(cfg.Kafka.Brokers, "PaymentFailed", "order-service-payment-failed", logger)
 	paymentFailedConsumer.SetHandler(orderKafkaHandler.HandlePaymentFailed)
 
-	mux := http.NewServeMux()
-	orderHandler.RegisterRoutes(mux)
+	r := chi.NewRouter()
+
+	r.Use(appmiddleware.RequestID)
+	r.Use(appmiddleware.Recovery(logger))
+	r.Use(appmiddleware.Logging(logger))
+	r.Use(appmiddleware.CORS)
+	r.Use(chimw.RealIP)
+
+	orderHandler.RegisterRoutes(r)
 
 	healthChecker := health.NewHealthChecker(db, cfg.Kafka.Brokers[0])
-	health.RegisterRoutes(mux, healthChecker)
+	health.RegisterRoutes(r, healthChecker)
 
-	mux.Handle("GET /swagger/", httpSwagger.WrapHandler)
+	r.Get("/swagger/*", httpSwagger.WrapHandler)
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.Port,
-		Handler:      mux,
+		Handler:      r,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  120 * time.Second,

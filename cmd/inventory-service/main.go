@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"google.golang.org/grpc"
 
 	"github.com/suleymankursatdemir/ecommerce-platform/internal/inventory/handler"
@@ -21,6 +22,7 @@ import (
 	pkgkafka "github.com/suleymankursatdemir/ecommerce-platform/pkg/kafka"
 	pb "github.com/suleymankursatdemir/ecommerce-platform/pkg/grpc/inventorypb"
 	"github.com/suleymankursatdemir/ecommerce-platform/pkg/logger"
+	appmiddleware "github.com/suleymankursatdemir/ecommerce-platform/pkg/middleware"
 )
 
 func main() {
@@ -72,9 +74,14 @@ func main() {
 	consumer := pkgkafka.NewConsumer(cfg.Kafka.Brokers, "PaymentSuccess", "inventory-service-group", logger)
 	consumer.SetHandler(inventoryHandler.HandlePaymentSuccess)
 
-	mux := http.NewServeMux()
+	r := chi.NewRouter()
+	r.Use(appmiddleware.RequestID)
+	r.Use(appmiddleware.Recovery(logger))
+	r.Use(appmiddleware.Logging(logger))
+	r.Use(appmiddleware.CORS)
+
 	healthChecker := health.NewHealthChecker(db, cfg.Kafka.Brokers[0])
-	health.RegisterRoutes(mux, healthChecker)
+	health.RegisterRoutes(r, healthChecker)
 
 	httpPort := os.Getenv("HEALTH_PORT")
 	if httpPort == "" {
@@ -82,7 +89,7 @@ func main() {
 	}
 	httpSrv := &http.Server{
 		Addr:         ":" + httpPort,
-		Handler:      mux,
+		Handler:      r,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 5 * time.Second,
 	}

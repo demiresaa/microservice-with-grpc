@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/segmentio/kafka-go"
 )
 
@@ -79,7 +80,7 @@ func statusCodeToText(code int) string {
 	return "not ready"
 }
 
-func RegisterRoutes(mux *http.ServeMux, hc *HealthChecker) {
-	mux.HandleFunc("GET /health", hc.Health)
-	mux.HandleFunc("GET /ready", hc.Ready)
+func RegisterRoutes(r chi.Router, hc *HealthChecker) {
+	r.Get("/health", hc.Health)
+	r.Get("/ready", hc.Ready)
 }

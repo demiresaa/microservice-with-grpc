@@ -38,6 +38,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -51,10 +52,8 @@ import (
 // ============================================================================
 
 func TestOrderHandler_GetOrder_Success(t *testing.T) {
-	// ARRANGE
 	mockUC := new(ucmocks.MockOrderUseCase)
-	// CreateOrder endpoint kullanılmadığı için producer ve gRPC client nil olabilir
-	handler := &OrderHandler{
+	h := &OrderHandler{
 		usecase:  mockUC,
 		producer: nil,
 	}
@@ -72,16 +71,13 @@ func TestOrderHandler_GetOrder_Success(t *testing.T) {
 
 	mockUC.On("GetOrderByID", mock.Anything, "order-123").Return(expectedOrder, nil)
 
-	// httptest ile sahte HTTP request oluştur
-	// Go 1.22+ route pattern: GET /orders/{id}
+	r := chi.NewRouter()
+	r.Get("/orders/{id}", h.GetOrder)
+
 	req := httptest.NewRequest(http.MethodGet, "/orders/order-123", nil)
-	req.SetPathValue("id", "order-123")
 	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
 
-	// ACT
-	handler.GetOrder(rec, req)
-
-	// ASSERT
 	assert.Equal(t, http.StatusOK, rec.Code, "başarılı istekte 200 dönmeli")
 
 	var response domain.Order
@@ -95,23 +91,21 @@ func TestOrderHandler_GetOrder_Success(t *testing.T) {
 }
 
 func TestOrderHandler_GetOrder_NotFound(t *testing.T) {
-	// ARRANGE
 	mockUC := new(ucmocks.MockOrderUseCase)
-	handler := &OrderHandler{
+	h := &OrderHandler{
 		usecase:  mockUC,
 		producer: nil,
 	}
 
 	mockUC.On("GetOrderByID", mock.Anything, "nonexistent").Return(nil, apperrors.ErrOrderNotFound)
 
+	r := chi.NewRouter()
+	r.Get("/orders/{id}", h.GetOrder)
+
 	req := httptest.NewRequest(http.MethodGet, "/orders/nonexistent", nil)
-	req.SetPathValue("id", "nonexistent")
 	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
 
-	// ACT
-	handler.GetOrder(rec, req)
-
-	// ASSERT
 	assert.Equal(t, http.StatusNotFound, rec.Code,
 		"bulunamayan siparişte 404 dönmeli")
 
@@ -122,51 +116,41 @@ func TestOrderHandler_GetOrder_NotFound(t *testing.T) {
 }
 
 func TestOrderHandler_GetOrder_EmptyID(t *testing.T) {
-	// ARRANGE
 	mockUC := new(ucmocks.MockOrderUseCase)
-	handler := &OrderHandler{
+	h := &OrderHandler{
 		usecase:  mockUC,
 		producer: nil,
 	}
 
+	r := chi.NewRouter()
+	r.Get("/orders/{id}", h.GetOrder)
+
 	req := httptest.NewRequest(http.MethodGet, "/orders/", nil)
-	req.SetPathValue("id", "")
 	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
 
-	// ACT
-	handler.GetOrder(rec, req)
+	assert.Equal(t, http.StatusNotFound, rec.Code,
+		"chi router boş segmenti eşleştirmez, 404 dönmeli")
 
-	// ASSERT
-	assert.Equal(t, http.StatusBadRequest, rec.Code,
-		"boş ID'de 400 dönmeli")
-
-	var response map[string]string
-	err := json.NewDecoder(rec.Body).Decode(&response)
-	require.NoError(t, err)
-	assert.Contains(t, response["error"], "order id is required")
-
-	// Usecase çağrılmamalı
 	mockUC.AssertNotCalled(t, "GetOrderByID")
 }
 
 func TestOrderHandler_GetOrder_UsecaseError(t *testing.T) {
-	// ARRANGE
 	mockUC := new(ucmocks.MockOrderUseCase)
-	handler := &OrderHandler{
+	h := &OrderHandler{
 		usecase:  mockUC,
 		producer: nil,
 	}
 
 	mockUC.On("GetOrderByID", mock.Anything, "order-err").Return(nil, errors.New("unexpected"))
 
+	r := chi.NewRouter()
+	r.Get("/orders/{id}", h.GetOrder)
+
 	req := httptest.NewRequest(http.MethodGet, "/orders/order-err", nil)
-	req.SetPathValue("id", "order-err")
 	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
 
-	// ACT
-	handler.GetOrder(rec, req)
-
-	// ASSERT: Bilinmeyen hata → 500 Internal Server Error
 	assert.Equal(t, http.StatusInternalServerError, rec.Code)
 
 	var response map[string]string
