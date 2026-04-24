@@ -16,10 +16,10 @@
 #   Sonuç: ~15-20MB image (golang image ~300MB olurdu)
 # ============================================================================
 
-.PHONY: build-all build-order build-payment build-inventory \
+.PHONY: build-all build-order build-payment build-inventory build-gateway \
         up down stop-infra run-infra \
         up-services down-services \
-        logs-order logs-payment logs-inventory \
+        logs-order logs-payment logs-inventory logs-gateway \
         create-topics ps clean
 
 # ---- BUILD KOMUTLARI ----
@@ -33,7 +33,10 @@ build-payment:
 build-inventory:
 	docker build -f cmd/inventory-service/Dockerfile -t ecommerce-inventory-service:latest .
 
-build-all: build-order build-payment build-inventory
+build-gateway:
+	docker build -f cmd/api-gateway/Dockerfile -t ecommerce-api-gateway:latest .
+
+build-all: build-order build-payment build-inventory build-gateway
 	@echo "✅ Tüm servisler build edildi"
 
 # ---- DOCKER COMPOSE KOMUTLARI ----
@@ -54,7 +57,7 @@ up-infra:
 
 # Sadece servisleri kaldır (altyapı zaten ayakta olmalı)
 up-services: build-all
-	docker-compose up -d order-service payment-service inventory-service
+	docker-compose up -d order-service payment-service inventory-service api-gateway
 	@echo "✅ Servisler ayağa kalktı"
 
 # Her şeyi durdur
@@ -66,7 +69,7 @@ stop-infra:
 
 # Servisleri durdur (altyapı çalışmaya devam eder)
 down-services:
-	docker-compose stop order-service payment-service inventory-service
+	docker-compose stop order-service payment-service inventory-service api-gateway
 
 # ---- LOG KOMUTLARI ----
 
@@ -78,6 +81,9 @@ logs-payment:
 
 logs-inventory:
 	docker-compose logs -f inventory-service
+
+logs-gateway:
+	docker-compose logs -f api-gateway
 
 # ---- KAFFA TOPIC OLUŞTURMA ----
 
@@ -107,6 +113,9 @@ run-payment:
 
 run-inventory:
 	DB_PORT=5434 DB_USER=inventory_user DB_PASSWORD=inventory_pass DB_NAME=inventory_db GRPC_PORT=50051 go run cmd/inventory-service/main.go
+
+run-gateway:
+	GATEWAY_PORT=8000 ORDER_SERVICE_URL=http://localhost:8081 go run cmd/api-gateway/main.go
 
 run-all: run-infra
 	@echo "Altyapi ayaga kalkti. Servisleri ayri terminallerde calistir:"

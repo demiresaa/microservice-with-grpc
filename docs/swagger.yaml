@@ -14,6 +14,14 @@ definitions:
     - OrderStatusCompleted
     - OrderStatusCancelled
     - OrderStatusFailed
+  domain.Role:
+    enum:
+    - admin
+    - user
+    type: string
+    x-enum-varnames:
+    - RoleAdmin
+    - RoleUser
   dto.CreateOrderRequest:
     properties:
       customer_id:
@@ -28,6 +36,28 @@ definitions:
       total_price:
         example: 99.9
         type: number
+    type: object
+  dto.LoginRequest:
+    properties:
+      password:
+        example: admin123
+        type: string
+      username:
+        example: admin
+        type: string
+    type: object
+  dto.LoginResponse:
+    properties:
+      access_token:
+        type: string
+      expires_in:
+        type: integer
+      refresh_token:
+        type: string
+      token_type:
+        type: string
+      user:
+        $ref: '#/definitions/dto.UserResponse'
     type: object
   dto.OrderResponse:
     properties:
@@ -57,6 +87,33 @@ definitions:
         example: "2024-01-01T00:00:00Z"
         type: string
     type: object
+  dto.RefreshRequest:
+    properties:
+      refresh_token:
+        type: string
+    type: object
+  dto.RefreshResponse:
+    properties:
+      access_token:
+        type: string
+      expires_in:
+        type: integer
+      refresh_token:
+        type: string
+      token_type:
+        type: string
+    type: object
+  dto.UserResponse:
+    properties:
+      email:
+        type: string
+      id:
+        type: string
+      role:
+        $ref: '#/definitions/domain.Role'
+      username:
+        type: string
+    type: object
 host: localhost:8081
 info:
   contact: {}
@@ -64,6 +121,101 @@ info:
   title: E-Commerce Order Service API
   version: "1.0"
 paths:
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Kullanici girisi yapar ve JWT token alir
+      parameters:
+      - description: Giris bilgileri
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.LoginResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Giris yap
+      tags:
+      - auth
+  /auth/refresh:
+    post:
+      consumes:
+      - application/json
+      description: Refresh token ile yeni access token alir
+      parameters:
+      - description: Refresh token
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.RefreshRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.RefreshResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Token yenile
+      tags:
+      - auth
+  /health:
+    get:
+      description: Servisin ayakta olup olmadigini kontrol eder (liveness)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Servis canli mi kontrol et
+      tags:
+      - health
   /orders:
     post:
       consumes:
@@ -89,12 +241,20 @@ paths:
             additionalProperties:
               type: string
             type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
         "500":
           description: Internal Server Error
           schema:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Yeni siparis olustur
       tags:
       - orders
@@ -120,6 +280,12 @@ paths:
             additionalProperties:
               type: string
             type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
         "404":
           description: Not Found
           schema:
@@ -132,7 +298,34 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Siparis sorgula
       tags:
       - orders
+  /ready:
+    get:
+      description: Veritabani ve Kafka baglantilarini kontrol eder (readiness)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "503":
+          description: Service Unavailable
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Servis hazir mi kontrol et
+      tags:
+      - health
+securityDefinitions:
+  BearerAuth:
+    description: 'Bearer token gir (ornek: Bearer eyJhbGci...)'
+    in: header
+    name: Authorization
+    type: apiKey
 swagger: "2.0"

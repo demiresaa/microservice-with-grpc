@@ -23,6 +23,13 @@ func NewHealthChecker(db *sql.DB, kafkaBroker string) *HealthChecker {
 	}
 }
 
+// Health godoc
+// @Summary      Servis canli mi kontrol et
+// @Description  Servisin ayakta olup olmadigini kontrol eder (liveness)
+// @Tags         health
+// @Produce      json
+// @Success      200 {object} map[string]string
+// @Router       /health [get]
 func (h *HealthChecker) Health(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -31,6 +38,14 @@ func (h *HealthChecker) Health(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// Ready godoc
+// @Summary      Servis hazir mi kontrol et
+// @Description  Veritabani ve Kafka baglantilarini kontrol eder (readiness)
+// @Tags         health
+// @Produce      json
+// @Success      200 {object} map[string]interface{}
+// @Failure      503 {object} map[string]interface{}
+// @Router       /ready [get]
 func (h *HealthChecker) Ready(w http.ResponseWriter, r *http.Request) {
 	status := http.StatusOK
 	checks := make(map[string]string)

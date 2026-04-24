@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -39,9 +40,11 @@ func (h *OrderHandler) RegisterRoutes(r chi.Router) {
 // @Tags         orders
 // @Accept       json
 // @Produce      json
+// @Security     BearerAuth
 // @Param        request body dto.CreateOrderRequest true "Siparis bilgileri"
 // @Success      201 {object} dto.OrderResponse
 // @Failure      400 {object} map[string]string
+// @Failure      401 {object} map[string]string
 // @Failure      500 {object} map[string]string
 // @Router       /orders [post]
 func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
@@ -100,9 +103,11 @@ func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 // @Description  ID ile siparis bilgilerini getirir
 // @Tags         orders
 // @Produce      json
+// @Security     BearerAuth
 // @Param        id path string true "Siparis ID"
 // @Success      200 {object} dto.OrderResponse
 // @Failure      400 {object} map[string]string
+// @Failure      401 {object} map[string]string
 // @Failure      404 {object} map[string]string
 // @Failure      500 {object} map[string]string
 // @Router       /orders/{id} [get]
@@ -127,7 +132,8 @@ func (h *OrderHandler) GetOrder(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleError(w http.ResponseWriter, err error) {
-	if appErr, ok := err.(*apperrors.AppError); ok {
+	var appErr *apperrors.AppError
+	if errors.As(err, &appErr) {
 		status := mapCodeToStatus(appErr.Code)
 		writeJSON(w, status, map[string]string{
 			"code":    appErr.Code,

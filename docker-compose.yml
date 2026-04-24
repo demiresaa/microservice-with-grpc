@@ -94,6 +94,8 @@ services:
       - "5432:5432"
     volumes:
       - order-db-data:/var/lib/postgresql/data
+      - ./migrations/001_create_orders.up.sql:/docker-entrypoint-initdb.d/01_orders.sql
+      - ./migrations/004_create_users.up.sql:/docker-entrypoint-initdb.d/02_users.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U order_user -d order_db"]
       interval: 5s
@@ -113,6 +115,7 @@ services:
       - "5433:5432"
     volumes:
       - payment-db-data:/var/lib/postgresql/data
+      - ./migrations/002_create_payments.up.sql:/docker-entrypoint-initdb.d/01_payments.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U payment_user -d payment_db"]
       interval: 5s
@@ -132,6 +135,7 @@ services:
       - "5434:5432"
     volumes:
       - inventory-db-data:/var/lib/postgresql/data
+      - ./migrations/003_create_inventory.up.sql:/docker-entrypoint-initdb.d/01_inventory.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U inventory_user -d inventory_db"]
       interval: 5s
@@ -231,6 +235,44 @@ services:
       GRPC_PORT: "50051"
     ports:
       - "50051:50051"
+    restart: unless-stopped
+    networks:
+      - ecommerce-network
+
+  # ========================================================================
+  # API GATEWAY - TEK GIRIS NOKTASI
+  # ========================================================================
+  #
+  # Client → API Gateway → Order Service / Payment Service / Inventory Service
+  #
+  # Gateway'in gorevleri:
+  #   - Reverse proxy: Istekleri dogru servise yonlendirir
+  #   - Auth: JWT token dogrulama (korunmali route'lar icin)
+  #   - Rate limit: IP bazli istek sinirlama
+  #   - Logging: Tum istekleri loglar
+  #   - CORS: Cross-origin isteklerini yonetir
+  #
+  # ROUTING:
+  #   /api/auth/*   → order-service (login, refresh) - public
+  #   /api/orders/* → order-service (CRUD)          - JWT required
+  #   /api/health/* → order-service (health)        - public
+  #
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: cmd/api-gateway/Dockerfile
+    container_name: ecommerce-api-gateway
+    depends_on:
+      - order-service
+      - payment-service
+      - inventory-service
+    environment:
+      GATEWAY_PORT: "8000"
+      ORDER_SERVICE_URL: http://order-service:8081
+      JWT_SECRET: ${JWT_SECRET:-my-super-secret-key-change-in-production}
+    ports:
+      - "8000:8000"
     restart: unless-stopped
     networks:
       - ecommerce-network

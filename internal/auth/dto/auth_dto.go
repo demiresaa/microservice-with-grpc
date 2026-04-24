@@ -4,7 +4,7 @@ import "github.com/suleymankursatdemir/ecommerce-platform/internal/auth/domain"
 
 type LoginRequest struct {
 	Username string `json:"username" example:"admin"`
-	Password string `json:"password" example:"secret123"`
+	Password string `json:"password" example:"admin123"`
 }
 
 type LoginResponse struct {

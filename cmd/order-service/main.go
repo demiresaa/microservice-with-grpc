@@ -36,6 +36,10 @@ import (
 // @description     Siparis yonetimi icin REST API - Kafka event-driven microservice mimarisi
 // @host            localhost:8081
 // @BasePath        /
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @description Bearer token gir (ornek: Bearer eyJhbGci...)
 func main() {
 	logger := logger.New("order-service")
 
